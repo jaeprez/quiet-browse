@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080a0d">
-<title>QuietBrowse Manual Queue v3 v2</title>
+<title>QuietBrowse Manual Queue v4 v2</title>
 <style>
 :root{color-scheme:dark;--bg:#080a0d;--panel:#11151a;--panel2:#0c1014;--line:#29313a;--text:#f4f6f8;--muted:#9099a5;--accent:#d9ff62}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
@@ -31,6 +31,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:16px 0 5px}.queue
 <div class="buttons"><button id="addBulk">Add Links</button><button id="clear">Clear</button><button id="start" class="go">Start Queue</button></div>
 <div class="queue" id="queueInfo">0 videos queued</div>
 <div class="buttons"><button id="prev">Previous</button><button id="play">Play / Pause</button><button id="next">Next</button></div>
+<div class="buttons" style="grid-template-columns:1fr"><button id="loop" class="on">Loop Queue ON</button></div>
 </section>
 
 <section class="card">
@@ -43,13 +44,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:16px 0 5px}.queue
 </section>
 
 <section class="card">
-<details open><summary>Diagnostics</summary><div class="log" id="log">QuietBrowse native ID-array playlist initialized.</div></details>
+<details open><summary>Diagnostics</summary><div class="log" id="log">QuietBrowse looping native playlist initialized.</div></details>
 </section>
 </main>
 
 <script>
 const $=x=>document.getElementById(x);
-let yt=null,ready=false,Q=[],qi=0,userVol=70,duckReduction=.60,smart=true,fadeTimer=null;
+let yt=null,ready=false,Q=[],qi=0,userVol=70,duckReduction=.60,smart=true,loopQueue=true,fadeTimer=null;
 function L(s){$('log').textContent=new Date().toLocaleTimeString()+'  '+s+'\n'+$('log').textContent}
 function S(s){$('status').textContent=s}
 function videoId(u){
@@ -98,6 +99,7 @@ function makePlayer(){
    L(`Handing ${Q.length} video IDs to YouTube playlist engine`);
    try{
      yt.loadPlaylist(ids(),0,0);
+     yt.setLoop(loopQueue);
      yt.setVolume(userVol);
    }catch(e){L('loadPlaylist failed: '+e.message)}
    return;
@@ -110,7 +112,7 @@ function makePlayer(){
     L(`Player ready · loading native ID-array playlist (${Q.length} videos)`);
     try{
       yt.loadPlaylist(ids(),0,0);
-      yt.setLoop(false);
+      yt.setLoop(loopQueue);
       S('PLAYING');
     }catch(e){L('Playlist load failed: '+e.message)}
   },
@@ -150,6 +152,13 @@ $('addBulk').onclick=()=>{if(addLinks($('bulk').value))$('bulk').value=''};
 $('clear').onclick=()=>{Q=[];qi=0;ready=false;if(yt)try{yt.destroy()}catch{};$('player').innerHTML='<div class="ph">Add videos to your queue</div>';updateQ();L('Queue cleared')};
 $('start').onclick=()=>{qi=0;updateQ();makePlayer();setTimeout(()=>{try{let p=yt&&yt.getPlaylist?yt.getPlaylist():[];L('YouTube playlist engine reports '+(p?p.length:0)+' queued videos')}catch{}},1200)};
 $('prev').onclick=()=>go(-1);$('next').onclick=()=>go(1);
+$('loop').onclick=()=>{
+ loopQueue=!loopQueue;
+ $('loop').textContent=loopQueue?'Loop Queue ON':'Loop Queue OFF';
+ $('loop').classList.toggle('on',loopQueue);
+ try{if(yt&&ready)yt.setLoop(loopQueue)}catch{}
+ L('Queue looping '+(loopQueue?'enabled':'disabled'));
+};
 $('play').onclick=()=>{try{let s=yt.getPlayerState();s===1?yt.pauseVideo():yt.playVideo()}catch{}};
 $('vol').oninput=e=>{userVol=+e.target.value;$('vtxt').textContent=userVol+'%';if(ready)yt.setVolume(userVol)};
 $('duck').oninput=e=>{duckReduction=+e.target.value/100;$('dtxt').textContent=e.target.value+'%'};
