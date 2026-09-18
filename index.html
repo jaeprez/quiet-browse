@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080a0d">
-<title>QuietBrowse Manual Queue</title>
+<title>QuietBrowse Manual Queue v2 v2</title>
 <style>
 :root{color-scheme:dark;--bg:#080a0d;--panel:#11151a;--panel2:#0c1014;--line:#29313a;--text:#f4f6f8;--muted:#9099a5;--accent:#d9ff62}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
@@ -43,7 +43,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:16px 0 5px}.queue
 </section>
 
 <section class="card">
-<details open><summary>Diagnostics</summary><div class="log" id="log">QuietBrowse manual queue initialized.</div></details>
+<details open><summary>Diagnostics</summary><div class="log" id="log">QuietBrowse persistent-player queue initialized.</div></details>
 </section>
 </main>
 
@@ -82,21 +82,60 @@ function addLinks(text){
 function makePlayer(){
  if(!Q.length){L('Queue is empty');return}
  if(typeof YT==='undefined'||!YT.Player){L('YouTube API is still loading');return}
- if(yt)try{yt.destroy()}catch{}
- $('player').innerHTML='<div id="ytp"></div>';ready=false;S('LOADING');updateQ();
  let id=Q[qi].id;
- yt=new YT.Player('ytp',{videoId:id,playerVars:{playsinline:1,rel:0,autoplay:1},events:{
-  onReady:()=>{ready=true;yt.setVolume(userVol);S('PLAYING');updateQ();L(`Loaded ${qi+1}/${Q.length}: ${id}`);try{yt.playVideo()}catch{}},
+
+ // IMPORTANT: create the iframe once. Every later queue item is loaded into
+ // this same player with loadVideoById(), preserving one media session.
+ if(yt && ready){
+   S('LOADING');updateQ();L(`Loading ${qi+1}/${Q.length} in existing player: ${id}`);
+   try{yt.loadVideoById(id);yt.setVolume(userVol)}catch(e){L('loadVideoById failed: '+e.message)}
+   return;
+ }
+
+ $('player').innerHTML='<div id="ytp"></div>';ready=false;S('LOADING');updateQ();
+ yt=new YT.Player('ytp',{videoId:id,playerVars:{playsinline:1,rel:0,autoplay:0},events:{
+  onReady:()=>{
+    ready=true;yt.setVolume(userVol);S('READY');updateQ();
+    L(`Player created once · loaded ${qi+1}/${Q.length}: ${id}`);
+    try{yt.playVideo()}catch(e){L('Initial play failed: '+e.message)}
+  },
   onStateChange:e=>{
    let names={[-1]:'UNSTARTED',[0]:'ENDED',[1]:'PLAYING',[2]:'PAUSED',[3]:'BUFFERING',[5]:'CUED'};
    L('Player: '+(names[e.data]||e.data));
-   if(e.data===0)go(1);
+   if(e.data===1){S('PLAYING');updateQ()}
+   if(e.data===2)S('PAUSED');
+   if(e.data===0){
+     L('Video ended · advancing in same player');
+     go(1);
+   }
   },
-  onAutoplayBlocked:()=>{S('TAP PLAY');L('Autoplay blocked — tap Play / Pause')},
-  onError:e=>{L(`Video ${id} error ${e.data}`);if(e.data===101||e.data===150){L('Embedding disabled — skipping');setTimeout(()=>go(1),500)}}
+  onAutoplayBlocked:()=>{
+    S('TAP PLAY');
+    L('Safari/YouTube blocked automatic playback · tap Play / Pause');
+  },
+  onError:e=>{
+    L(`Video ${Q[qi]?.id||id} error ${e.data}`);
+    if(e.data===100||e.data===101||e.data===150){
+      L('Unavailable or embedding disabled · skipping in same player');
+      setTimeout(()=>go(1),500);
+    }
+  }
  }});
 }
-function go(d){if(!Q.length)return;qi=(qi+d+Q.length)%Q.length;updateQ();makePlayer()}
+function go(d){
+ if(!Q.length)return;
+ qi=(qi+d+Q.length)%Q.length;
+ updateQ();
+ if(yt&&ready){
+   let id=Q[qi].id;
+   S('LOADING');
+   L(`Queue → ${qi+1}/${Q.length}: ${id}`);
+   try{
+     yt.loadVideoById({videoId:id});
+     yt.setVolume(userVol);
+   }catch(e){L('Queue load failed: '+e.message)}
+ }else makePlayer();
+}
 function fadeTo(target,ms){
  if(!ready||!yt)return;clearInterval(fadeTimer);
  let from=yt.getVolume(),t0=performance.now();
