@@ -1,134 +1,54 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080a0d"><title>QuietBrowse v2.2</title>
-<style>
-:root{color-scheme:dark;--bg:#080a0d;--p:#11151a;--p2:#0d1014;--line:#252b33;--text:#f5f7fa;--muted:#8d96a2;--accent:#d9ff62}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif}
-body{padding-bottom:env(safe-area-inset-bottom)}button,input{font:inherit}.top{position:sticky;top:0;z-index:10;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:#080a0df0;backdrop-filter:blur(18px);border-bottom:1px solid #171b20}
-.urlbar{display:flex;gap:7px}.urlbar input{min-width:0;flex:1;background:var(--p);border:1px solid var(--line);border-radius:13px;padding:12px;color:var(--text);outline:0}.urlbar button{border:0;border-radius:13px;padding:0 15px;background:var(--accent);color:#10120b;font-weight:800}
-main{max-width:850px;margin:auto;padding:12px}.player{background:#000;border-radius:18px;overflow:hidden;aspect-ratio:16/9}.player iframe{width:100%;height:100%;border:0}.placeholder{height:100%;display:grid;place-items:center;color:#666;font-size:14px}
-.card{background:var(--p);border:1px solid var(--line);border-radius:18px;padding:15px;margin-top:11px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.title{font-weight:800}.value{color:var(--accent);font-variant-numeric:tabular-nums}
-input[type=range]{width:100%;accent-color:var(--accent);margin:17px 0 5px}button.small{background:#1b2128;color:var(--text);border:1px solid #303741;border-radius:11px;padding:9px 11px}.on{background:var(--accent)!important;color:#111!important;border-color:var(--accent)!important}
-.state{font-size:13px;color:var(--muted)}.state strong{color:var(--text)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.metric{background:var(--p2);border-radius:12px;padding:11px}.metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}.metric b{font-size:17px}
-details{margin-top:11px}.log{max-height:190px;overflow:auto;background:#080a0d;border-radius:11px;padding:10px;font:11px ui-monospace,SFMono-Regular,monospace;color:#aab2bd;white-space:pre-wrap}.hint{font-size:12px;color:var(--muted);line-height:1.45;margin:10px 1px 0}.pill{font-size:10px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);padding:5px 7px;border-radius:999px}
-@media(max-width:520px){.grid{grid-template-columns:1fr 1fr}.player{border-radius:14px}}
-</style></head>
-<body>
-<header class="top"><div class="urlbar"><input id="url" inputmode="url" autocomplete="off" placeholder="YouTube URL or playlist URL"><button id="load">Load</button></div></header>
-<main>
-<div class="player" id="player"><div class="placeholder">Paste a YouTube video or playlist URL above</div></div>
-<section class="card">
-<div class="row"><span class="title">Quiet Volume</span><span class="pill" id="mode">SMART ON</span></div>
-<input id="volume" type="range" min="0" max="100" value="70"><div class="row"><span>Master</span><span class="value" id="volumeText">70%</span></div>
-<input id="duck" type="range" min="5" max="90" value="60"><div class="row"><span>Ad reduction</span><span class="value" id="duckText">60%</span></div>
-<div class="row" style="margin-top:14px"><span>Smart detection</span><button class="small on" id="smart">ON</button></div>
-<button class="small" id="resume" style="width:100%;margin-top:12px">Play / Resume</button>
-</section>
-<section class="card">
-<div class="row"><span class="title">Detector</span><span class="state" id="state"><strong>WAITING</strong></span></div>
-<div class="grid"><div class="metric"><small>Confidence</small><b id="confidence">0%</b></div><div class="metric"><small>Player</small><b id="playerState">--</b></div><div class="metric"><small>Signals</small><b id="signals">0</b></div></div>
-<details><summary>Detection log</summary><div class="log" id="log">QuietBrowse v2.2 initialized.
-</div></details>
-<p class="hint">Playlist URLs now use YouTube’s native playlist initialization. Open Detection log after loading to see playlist length, index, current video ID, autoplay blocks, & YouTube errors.</p>
-</section></main>
-<script>
-let yt=null,ytReady=false,smartOn=true,userVolume=.70,duckPct=.60,adMode=false,confidence=0,signalCount=0,lastState='--',lastTime=null,pollTimer=null,fadeTimer=null,logLines=[];
-const $=id=>document.getElementById(id);
-function log(s){let t=new Date().toLocaleTimeString();logLines.unshift(`[${t}] ${s}`);logLines=logLines.slice(0,80);$('log').textContent=logLines.join('\n')}
-function setState(s){$('state').innerHTML='<strong>'+s+'</strong>'} function pct(v){return Math.round(v*100)+'%'}
-function render(){$('volumeText').textContent=pct(userVolume);$('duckText').textContent=Math.round(duckPct*100)+'%';$('confidence').textContent=Math.round(confidence)+'%';$('playerState').textContent=lastState;$('signals').textContent=signalCount}
-function fadeTo(v,ms){if(!ytReady||!yt)return;clearInterval(fadeTimer);let from=yt.getVolume()/100,to=Math.max(0,Math.min(1,v)),t0=performance.now();fadeTimer=setInterval(()=>{let p=Math.min(1,(performance.now()-t0)/ms),e=p*p*(3-2*p);yt.setVolume(Math.round((from+(to-from)*e)*100));if(p>=1)clearInterval(fadeTimer)},50)}
-function duck(){if(!smartOn||adMode)return;adMode=true;setState('DUCKED');log('AD CONFIRMED → ducking');fadeTo(userVolume*(1-duckPct),650)}
-function restore(){if(!adMode)return;adMode=false;setState('RESTORING');log('AD EXIT → restoring');fadeTo(userVolume,1200);setTimeout(()=>{if(!adMode)setState('CONTENT')},1250)}
-function parseYT(u){try{let x=new URL(u),o={videoId:null,listId:null},h=x.hostname.replace(/^www\./,'').toLowerCase();if(h==='youtu.be'){o.videoId=x.pathname.slice(1).split('/')[0]||null;o.listId=x.searchParams.get('list')}if(h==='youtube.com'||h.endsWith('.youtube.com')){o.videoId=x.searchParams.get('v');o.listId=x.searchParams.get('list');if(x.pathname.startsWith('/shorts/'))o.videoId=x.pathname.split('/')[2]||null;if(x.pathname.startsWith('/embed/')){let p=x.pathname.split('/').filter(Boolean);if(p[1]&&p[1]!=='videoseries')o.videoId=p[1]}if(x.pathname.includes('/videoseries')||x.pathname==='/playlist')o.videoId=null}return o}catch{return{videoId:null,listId:null}}}
-function loadYT(){
- let p=parseYT($('url').value.trim());
- if(!p.videoId&&!p.listId){log('Could not parse YouTube URL');return}
- if(typeof YT==='undefined'||!YT.Player){log('YouTube API still loading; try again in a moment');return}
-
- if(yt)try{yt.destroy()}catch{}
- $('player').innerHTML='<div id="ytplayer"></div>';
- ytReady=false;confidence=0;adMode=false;lastTime=null;lastState='--';
- setState('LOADING');render();
-
- let vars={playsinline:1,rel:0,autoplay:0,enablejsapi:1,origin:location.origin};
-
- /* IMPORTANT: playlist-only URLs are initialized natively.
-    Google documents listType=playlist + list=PLAYLIST_ID as a valid
-    player configuration without any VIDEO_ID. */
- if(p.listId){
-   vars.listType='playlist';
-   vars.list=p.listId;
- }
-
- let cfg={
-   height:'100%',width:'100%',
-   playerVars:vars,
-   events:{
-     onReady:()=>{
-       ytReady=true;
-       yt.setVolume(Math.round(userVolume*100));
-       log('YouTube player ready');
-       if(p.listId){
-         setState('PLAYLIST READY');
-         setTimeout(()=>{
-           try{
-             const pl=yt.getPlaylist?.()||[];
-             const ix=yt.getPlaylistIndex?.();
-             const vd=yt.getVideoData?.()||{};
-             log('Playlist ID: '+p.listId);
-             log('Playlist length: '+pl.length);
-             log('Playlist index: '+ix);
-             log('Current video ID: '+(vd.video_id||'(none yet)'));
-             if(!pl.length) log('DIAGNOSTIC: YouTube did not expose playlist items yet.');
-           }catch(e){log('Playlist diagnostic error: '+e.message)}
-         },1200);
-       } else setState('READY');
-       startPolling();
-     },
-     onStateChange:e=>{
-       lastState=({[-1]:'UNSTARTED',[0]:'ENDED',[1]:'PLAYING',[2]:'PAUSED',[3]:'BUFFERING',[5]:'CUED'})[e.data]||String(e.data);
-       render();log('Player state: '+lastState);
-       if(p.listId){
-         try{
-           let ix=yt.getPlaylistIndex?.();
-           let vd=yt.getVideoData?.()||{};
-           log('Playlist index '+ix+' · video '+(vd.video_id||'?'));
-         }catch{}
-       }
-     },
-     onAutoplayBlocked:()=>{
-       setState('TAP PLAY');
-       log('AUTOPLAY BLOCKED by browser — tap Play / Resume.');
-     },
-     onError:e=>{
-       let m={2:'Invalid parameter',5:'HTML5 player error',100:'Video unavailable/private',101:'Embedding not allowed',150:'Embedding not allowed'};
-       log('YouTube error '+e.data+(m[e.data]?' — '+m[e.data]:''));
-       setState('YT ERROR');
-     }
-   }
- };
-
- /* For a watch URL that also contains a playlist, start from that video
-    while preserving the native playlist context. Playlist-only URLs omit it. */
- if(p.videoId) cfg.videoId=p.videoId;
-
- yt=new YT.Player('ytplayer',cfg);
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080a0d"><title>QuietBrowse v3</title>
+<style>:root{color-scheme:dark;--b:#080a0d;--p:#11151a;--l:#29303a;--t:#f4f6f8;--m:#9099a5;--a:#d9ff62}*{box-sizing:border-box}body{margin:0;background:var(--b);color:var(--t);font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding-bottom:env(safe-area-inset-bottom)}header{position:sticky;top:0;z-index:9;background:#080a0df2;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;backdrop-filter:blur(16px)}.bar{display:flex;gap:7px}input[type=text]{min-width:0;flex:1;background:var(--p);border:1px solid var(--l);border-radius:13px;color:var(--t);padding:12px;font-size:16px}button{background:#1b2128;border:1px solid #303741;color:var(--t);border-radius:12px;padding:10px 12px;font-weight:700}.go,.on{background:var(--a);color:#111;border-color:var(--a)}main{max-width:850px;margin:auto;padding:12px}.player{aspect-ratio:16/9;background:#000;border-radius:17px;overflow:hidden}.player iframe{width:100%;height:100%}.ph{height:100%;display:grid;place-items:center;color:#666}.card{margin-top:11px;padding:15px;background:var(--p);border:1px solid var(--l);border-radius:18px}.row{display:flex;justify-content:space-between;align-items:center;gap:9px}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:12px}.val{color:var(--a)}input[type=range]{width:100%;accent-color:var(--a);margin:16px 0 4px}.muted{color:var(--m);font-size:12px;line-height:1.45}.log{background:#080a0d;padding:10px;border-radius:10px;max-height:220px;overflow:auto;white-space:pre-wrap;font:11px ui-monospace,monospace;color:#aab2bd}.badge{font-size:11px;border:1px solid var(--l);border-radius:999px;padding:5px 8px}.queue{font-size:13px;color:var(--m);margin-top:9px}</style></head>
+<body><header><div class="bar"><input id="url" type="text" placeholder="YouTube video or playlist URL"><button id="load" class="go">Load</button></div></header><main>
+<div class="player" id="player"><div class="ph">Paste a YouTube URL</div></div>
+<section class="card"><div class="row"><b>QuietBrowse v3</b><span class="badge" id="status">READY</span></div><div class="queue" id="queue">Queue empty</div>
+<div class="controls"><button id="prev">Previous</button><button id="play">Play</button><button id="next">Next</button></div></section>
+<section class="card"><div class="row"><b>Quiet Volume</b><span class="val" id="vtxt">70%</span></div><input id="vol" type="range" min="0" max="100" value="70"><div class="row"><span>Ad reduction</span><span class="val" id="dtxt">60%</span></div><input id="duck" type="range" min="5" max="95" value="60"></section>
+<section class="card"><details open><summary>Diagnostics</summary><div id="log" class="log">QuietBrowse v3 initialized.</div></details><p class="muted">Playlist extraction uses YouTube's internal browse interface without requiring your own Data API key. Because that interface is unofficial, YouTube can change it.</p></section>
+</main><script>
+const $=x=>document.getElementById(x);let yt=null,ready=false,Q=[],qi=0,userVol=70,skipTimer=null;
+function L(s){$('log').textContent=new Date().toLocaleTimeString()+'  '+s+'\n'+$('log').textContent}
+function S(s){$('status').textContent=s}function parse(u){try{let x=new URL(u),h=x.hostname.replace(/^www\./,'');return{v:h==='youtu.be'?x.pathname.slice(1):x.searchParams.get('v'),list:x.searchParams.get('list')}}catch{return{}}}
+function walk(o,out=[]){if(!o||typeof o!=='object')return out;if(o.playlistVideoRenderer?.videoId)out.push({id:o.playlistVideoRenderer.videoId,title:o.playlistVideoRenderer.title?.runs?.map(x=>x.text).join('')||'Video'});for(let k in o)walk(o[k],out);return out}
+function tokenWalk(o){if(!o||typeof o!=='object')return null;if(o.continuationItemRenderer){let t=o.continuationItemRenderer.continuationEndpoint?.continuationCommand?.token;if(t)return t}for(let k in o){let t=tokenWalk(o[k]);if(t)return t}return null}
+async function inner(body){
+ const clients=[
+  {clientName:'WEB',clientVersion:'2.20260901.00.00',hl:'en',gl:'US'},
+  {clientName:'MWEB',clientVersion:'2.20260901.00.00',hl:'en',gl:'US'}
+ ];
+ let err;
+ for(const client of clients){try{
+  let r=await fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false',{method:'POST',headers:{'Content-Type':'application/json','X-YouTube-Client-Name':client.clientName==='WEB'?'1':'2','X-YouTube-Client-Version':client.clientVersion},body:JSON.stringify({context:{client},...body})});
+  if(r.ok)return await r.json();err=new Error('HTTP '+r.status)
+ }catch(e){err=e}}throw err||new Error('request failed')
 }
-function startPolling(){clearInterval(pollTimer);pollTimer=setInterval(inspect,150)}
-function inspect(){if(!ytReady||!yt)return;let score=0,n=[];let st=yt.getPlayerState(),time=0;try{time=yt.getCurrentTime()}catch{}
- /* Cross-origin iframe DOM is normally unavailable on GitHub Pages. These probes are opportunistic. */
- try{let f=document.querySelector('#ytplayer iframe'),d=f&&f.contentDocument;if(d){let txt=(d.body?.innerText||'').toLowerCase();for(let w of ['skip ad','skip ads','visit advertiser','learn more','sponsored'])if(txt.includes(w)){score+=30;n.push(w)}}}catch{}
- if(lastTime!==null&&st===1&&time+1<lastTime){score+=8;n.push('time-reset')}lastTime=time;
- confidence=Math.max(0,Math.min(100,confidence*.86+score));signalCount=n.length;
- if(smartOn){if(confidence>=75)duck();else if(confidence<=20)restore();if(!adMode)setState(confidence>=40?'SUSPICIOUS':'CONTENT')}render()
+async function extractPlaylist(id){
+ S('EXTRACTING');L('Extracting playlist '+id);let all=[],seen=new Set(),body={browseId:'VL'+id};
+ for(let page=0;page<20;page++){let data=await inner(body),items=walk(data);for(const x of items)if(!seen.has(x.id)){seen.add(x.id);all.push(x)};let t=tokenWalk(data);L('Page '+(page+1)+': '+items.length+' entries · total '+all.length);if(!t)break;body={continuation:t}}
+ if(!all.length)throw new Error('YouTube returned no playlist entries. Browser CORS/internal API may be blocking extraction.');
+ return all
 }
-$('load').onclick=loadYT;$('url').addEventListener('keydown',e=>{if(e.key==='Enter')loadYT()});
-$('resume').onclick=()=>{try{if(ytReady&&yt){log('Manual play/resume requested');yt.playVideo();setTimeout(()=>{try{let pl=yt.getPlaylist?.()||[];log('After tap — state: '+yt.getPlayerState()+' · playlist length: '+pl.length+' · index: '+yt.getPlaylistIndex?.())}catch{}},700)}}catch(e){log('Play failed: '+e.message)}};
-$('volume').oninput=e=>{userVolume=+e.target.value/100;if(!adMode&&ytReady)yt.setVolume(Math.round(userVolume*100));render()};
-$('duck').oninput=e=>{duckPct=+e.target.value/100;if(adMode)fadeTo(userVolume*(1-duckPct),350);render()};
-$('smart').onclick=()=>{smartOn=!smartOn;$('smart').textContent=smartOn?'ON':'OFF';$('smart').classList.toggle('on',smartOn);$('mode').textContent=smartOn?'SMART ON':'SMART OFF';if(!smartOn){confidence=0;restore()}log('Smart detection '+(smartOn?'enabled':'disabled'));render()};
-window.onYouTubeIframeAPIReady=()=>log('YouTube API loaded');let tag=document.createElement('script');tag.src='https://www.youtube.com/iframe_api';document.head.appendChild(tag);render();
+function showQ(){$('queue').textContent=Q.length?`${qi+1} / ${Q.length} · ${Q[qi]?.title||Q[qi]?.id}`:'Queue empty'}
+function makePlayer(id){
+ if(typeof YT==='undefined'||!YT.Player){L('YouTube player API still loading');return}
+ if(yt)try{yt.destroy()}catch{};$('player').innerHTML='<div id="ytp"></div>';ready=false;
+ yt=new YT.Player('ytp',{videoId:id,playerVars:{playsinline:1,rel:0,autoplay:1},events:{
+ onReady:()=>{ready=true;yt.setVolume(userVol);S('PLAYING');showQ();L('Loaded '+id);try{yt.playVideo()}catch{}},
+ onStateChange:e=>{if(e.data===0)go(1)},
+ onAutoplayBlocked:()=>{S('TAP PLAY');L('Autoplay blocked — tap Play')},
+ onError:e=>{L('Video '+id+' error '+e.data+(e.data===101||e.data===150?' (embed disabled)':''));if(e.data===101||e.data===150){clearTimeout(skipTimer);skipTimer=setTimeout(()=>go(1),600)}}
+ }})
+}
+function go(d){if(!Q.length)return;qi=(qi+d+Q.length)%Q.length;showQ();makePlayer(Q[qi].id)}
+async function load(){
+ let p=parse($('url').value.trim());try{
+  if(p.list){Q=await extractPlaylist(p.list);qi=0;L('Queue built: '+Q.length+' videos');showQ();makePlayer(Q[0].id)}
+  else if(p.v){Q=[{id:p.v,title:'Single video'}];qi=0;showQ();makePlayer(p.v)}
+  else L('Could not parse URL')
+ }catch(e){S('EXTRACT ERROR');L(e.message);L('If this says CORS, pure GitHub Pages cannot call YouTube’s internal endpoint directly from Safari.')}
+}
+$('load').onclick=load;$('url').onkeydown=e=>{if(e.key==='Enter')load()};$('prev').onclick=()=>go(-1);$('next').onclick=()=>go(1);$('play').onclick=()=>{try{yt.playVideo()}catch{}};
+$('vol').oninput=e=>{userVol=+e.target.value;$('vtxt').textContent=userVol+'%';if(ready)yt.setVolume(userVol)};$('duck').oninput=e=>$('dtxt').textContent=e.target.value+'%';
+window.onYouTubeIframeAPIReady=()=>L('YouTube player API loaded');let sc=document.createElement('script');sc.src='https://www.youtube.com/iframe_api';document.head.appendChild(sc);
 </script></body></html>
