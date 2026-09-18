@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080a0d">
-<title>QuietBrowse Manual Queue v4 v2</title>
+<title>QuietBrowse Background Mode v5 v2</title>
 <style>
 :root{color-scheme:dark;--bg:#080a0d;--panel:#11151a;--panel2:#0c1014;--line:#29313a;--text:#f4f6f8;--muted:#9099a5;--accent:#d9ff62}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
@@ -35,6 +35,11 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:16px 0 5px}.queue
 </section>
 
 <section class="card">
+<div class="row"><b>Background Mode</b><span class="badge" id="bgStatus">ARMED</span></div>
+<p class="hint">Experimental iPhone lock-screen mode. Start the queue while Safari is visible, then lock the phone. If iOS exposes media controls, Play / Pause / Previous / Next are wired back to this same YouTube playlist session.</p>
+</section>
+
+<section class="card">
 <div class="row"><b>Quiet Volume</b><span class="val" id="vtxt">70%</span></div>
 <input id="vol" type="range" min="0" max="100" value="70">
 <div class="row"><span>Ad reduction</span><span class="val" id="dtxt">60%</span></div>
@@ -44,7 +49,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:16px 0 5px}.queue
 </section>
 
 <section class="card">
-<details open><summary>Diagnostics</summary><div class="log" id="log">QuietBrowse looping native playlist initialized.</div></details>
+<details open><summary>Diagnostics</summary><div class="log" id="log">QuietBrowse Background Mode initialized.</div></details>
 </section>
 </main>
 
@@ -80,6 +85,57 @@ function addLinks(text){
  updateQ();L(`Added ${added} video${added===1?'':'s'}${bad?` · ${bad} invalid link(s)`:''}`);
  return added
 }
+function setupBackgroundMode(){
+ try{
+   if('audioSession' in navigator){
+     navigator.audioSession.type='playback';
+     $('bgStatus').textContent='PLAYBACK';
+     L('AudioSession type set to playback');
+   }else L('AudioSession API unavailable');
+ }catch(e){L('AudioSession setup: '+e.message)}
+ if('mediaSession' in navigator){
+   try{
+     navigator.mediaSession.metadata=new MediaMetadata({title:'QuietBrowse Queue',artist:'YouTube',album:'QuietBrowse'});
+     const handlers={
+       play:()=>{try{yt&&yt.playVideo();navigator.mediaSession.playbackState='playing';L('Lock-screen PLAY')}catch{}},
+       pause:()=>{try{yt&&yt.pauseVideo();navigator.mediaSession.playbackState='paused';L('Lock-screen PAUSE')}catch{}},
+       previoustrack:()=>{try{yt&&yt.previousVideo();L('Lock-screen PREVIOUS')}catch{}},
+       nexttrack:()=>{try{yt&&yt.nextVideo();L('Lock-screen NEXT')}catch{}}
+     };
+     for(const [action,fn] of Object.entries(handlers)){try{navigator.mediaSession.setActionHandler(action,fn)}catch{}}
+     L('Media Session lock-screen handlers registered');
+   }catch(e){L('Media Session setup: '+e.message)}
+ }else L('Media Session API unavailable');
+}
+function updateMediaSession(state){
+ if(!('mediaSession' in navigator))return;
+ try{
+   if(state===1)navigator.mediaSession.playbackState='playing';
+   else if(state===2||state===0)navigator.mediaSession.playbackState='paused';
+   let data=yt&&yt.getVideoData?yt.getVideoData():null;
+   if(data){
+     navigator.mediaSession.metadata=new MediaMetadata({
+       title:data.title||'QuietBrowse',
+       artist:data.author||'YouTube',
+       album:`Queue ${qi+1} of ${Q.length}`
+     });
+   }
+   if(yt&&yt.getDuration&&yt.getCurrentTime&&navigator.mediaSession.setPositionState){
+     let d=yt.getDuration(),pos=yt.getCurrentTime();
+     if(d>0&&pos>=0&&pos<=d)navigator.mediaSession.setPositionState({duration:d,playbackRate:1,position:pos});
+   }
+ }catch{}
+}
+document.addEventListener('visibilitychange',()=>{
+ L('Page visibility: '+document.visibilityState);
+ $('bgStatus').textContent=document.hidden?'BACKGROUND':'FOREGROUND';
+ // Do not rebuild, reload, or pause the iframe here. Preserve the existing media session.
+ try{if(document.hidden&&'mediaSession' in navigator&&yt&&yt.getPlayerState&&yt.getPlayerState()===1)navigator.mediaSession.playbackState='playing'}catch{}
+});
+window.addEventListener('pagehide',()=>L('PAGEHIDE received'));
+window.addEventListener('pageshow',()=>{L('PAGESHOW received');setTimeout(()=>{try{syncIndex();updateMediaSession(yt.getPlayerState())}catch{}},300)});
+setupBackgroundMode();
+
 function ids(){return Q.map(x=>x.id)}
 function syncIndex(){
  if(!yt||!ready)return;
@@ -119,6 +175,7 @@ function makePlayer(){
   onStateChange:e=>{
    let names={[-1]:'UNSTARTED',[0]:'ENDED',[1]:'PLAYING',[2]:'PAUSED',[3]:'BUFFERING',[5]:'CUED'};
    syncIndex();
+   updateMediaSession(e.data);
    L('Player: '+(names[e.data]||e.data)+(Q.length?` · index ${qi+1}/${Q.length}`:''));
    if(e.data===1)S('PLAYING');
    if(e.data===2)S('PAUSED');
@@ -165,6 +222,7 @@ $('duck').oninput=e=>{duckReduction=+e.target.value/100;$('dtxt').textContent=e.
 $('duckNow').onclick=()=>{L('TEST DUCK');fadeTo(userVol*(1-duckReduction),650)};
 $('restore').onclick=()=>{L('RESTORE');fadeTo(userVol,1200)};
 $('smart').onclick=()=>{smart=!smart;$('smart').textContent=smart?'Smart ON':'Smart OFF';$('smart').classList.toggle('on',smart);L('Smart detection '+(smart?'enabled':'disabled'))};
+setInterval(()=>{try{if(ready&&yt&&yt.getPlayerState&&yt.getPlayerState()===1)updateMediaSession(1)}catch{}},5000);
 window.onYouTubeIframeAPIReady=()=>L('YouTube API loaded');
 let sc=document.createElement('script');sc.src='https://www.youtube.com/iframe_api';document.head.appendChild(sc);
 updateQ();
