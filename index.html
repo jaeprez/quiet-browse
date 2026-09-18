@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080a0d"><title>QuietBrowse v2.1</title>
+<meta name="theme-color" content="#080a0d"><title>QuietBrowse v2.2</title>
 <style>
 :root{color-scheme:dark;--bg:#080a0d;--p:#11151a;--p2:#0d1014;--line:#252b33;--text:#f5f7fa;--muted:#8d96a2;--accent:#d9ff62}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif}
@@ -29,9 +29,9 @@ details{margin-top:11px}.log{max-height:190px;overflow:auto;background:#080a0d;b
 <section class="card">
 <div class="row"><span class="title">Detector</span><span class="state" id="state"><strong>WAITING</strong></span></div>
 <div class="grid"><div class="metric"><small>Confidence</small><b id="confidence">0%</b></div><div class="metric"><small>Player</small><b id="playerState">--</b></div><div class="metric"><small>Signals</small><b id="signals">0</b></div></div>
-<details><summary>Detection log</summary><div class="log" id="log">QuietBrowse v2.1 initialized.
+<details><summary>Detection log</summary><div class="log" id="log">QuietBrowse v2.2 initialized.
 </div></details>
-<p class="hint">Playlist URLs are loaded explicitly after the YouTube player becomes ready. On iPhone, use Play / Resume if Safari blocks automatic playback.</p>
+<p class="hint">Playlist URLs now use YouTube’s native playlist initialization. Open Detection log after loading to see playlist length, index, current video ID, autoplay blocks, & YouTube errors.</p>
 </section></main>
 <script>
 let yt=null,ytReady=false,smartOn=true,userVolume=.70,duckPct=.60,adMode=false,confidence=0,signalCount=0,lastState='--',lastTime=null,pollTimer=null,fadeTimer=null,logLines=[];
@@ -44,13 +44,78 @@ function duck(){if(!smartOn||adMode)return;adMode=true;setState('DUCKED');log('A
 function restore(){if(!adMode)return;adMode=false;setState('RESTORING');log('AD EXIT → restoring');fadeTo(userVolume,1200);setTimeout(()=>{if(!adMode)setState('CONTENT')},1250)}
 function parseYT(u){try{let x=new URL(u),o={videoId:null,listId:null},h=x.hostname.replace(/^www\./,'').toLowerCase();if(h==='youtu.be'){o.videoId=x.pathname.slice(1).split('/')[0]||null;o.listId=x.searchParams.get('list')}if(h==='youtube.com'||h.endsWith('.youtube.com')){o.videoId=x.searchParams.get('v');o.listId=x.searchParams.get('list');if(x.pathname.startsWith('/shorts/'))o.videoId=x.pathname.split('/')[2]||null;if(x.pathname.startsWith('/embed/')){let p=x.pathname.split('/').filter(Boolean);if(p[1]&&p[1]!=='videoseries')o.videoId=p[1]}if(x.pathname.includes('/videoseries')||x.pathname==='/playlist')o.videoId=null}return o}catch{return{videoId:null,listId:null}}}
 function loadYT(){
- let p=parseYT($('url').value.trim());if(!p.videoId&&!p.listId){log('Could not parse YouTube URL');return}if(typeof YT==='undefined'||!YT.Player){log('YouTube API still loading; try again in a moment');return}
- if(yt)try{yt.destroy()}catch{};$('player').innerHTML='<div id="ytplayer"></div>';ytReady=false;confidence=0;adMode=false;lastTime=null;lastState='--';setState('LOADING');render();
- yt=new YT.Player('ytplayer',{height:'100%',width:'100%',videoId:p.videoId||undefined,playerVars:{playsinline:1,rel:0,autoplay:0},events:{
- onReady:()=>{ytReady=true;yt.setVolume(Math.round(userVolume*100));if(p.listId){log('Loading playlist: '+p.listId);try{yt.loadPlaylist({list:p.listId,listType:'playlist',index:0});setState('PLAYLIST')}catch(e){log('Playlist load failed: '+e.message);setState('PLAYLIST ERROR')}}else setState('READY');log(p.listId?'Playlist player ready':'YouTube player ready');startPolling()},
- onStateChange:e=>{lastState=({[-1]:'UNSTARTED',[0]:'ENDED',[1]:'PLAYING',[2]:'PAUSED',[3]:'BUFFERING',[5]:'CUED'})[e.data]||String(e.data);render();log('Player state: '+lastState)},
- onError:e=>{let m={2:'Invalid parameter',5:'HTML5 player error',100:'Video unavailable/private',101:'Embedding not allowed',150:'Embedding not allowed'};log('YouTube error '+e.data+(m[e.data]?' — '+m[e.data]:''));setState('YT ERROR')}
- }});
+ let p=parseYT($('url').value.trim());
+ if(!p.videoId&&!p.listId){log('Could not parse YouTube URL');return}
+ if(typeof YT==='undefined'||!YT.Player){log('YouTube API still loading; try again in a moment');return}
+
+ if(yt)try{yt.destroy()}catch{}
+ $('player').innerHTML='<div id="ytplayer"></div>';
+ ytReady=false;confidence=0;adMode=false;lastTime=null;lastState='--';
+ setState('LOADING');render();
+
+ let vars={playsinline:1,rel:0,autoplay:0,enablejsapi:1,origin:location.origin};
+
+ /* IMPORTANT: playlist-only URLs are initialized natively.
+    Google documents listType=playlist + list=PLAYLIST_ID as a valid
+    player configuration without any VIDEO_ID. */
+ if(p.listId){
+   vars.listType='playlist';
+   vars.list=p.listId;
+ }
+
+ let cfg={
+   height:'100%',width:'100%',
+   playerVars:vars,
+   events:{
+     onReady:()=>{
+       ytReady=true;
+       yt.setVolume(Math.round(userVolume*100));
+       log('YouTube player ready');
+       if(p.listId){
+         setState('PLAYLIST READY');
+         setTimeout(()=>{
+           try{
+             const pl=yt.getPlaylist?.()||[];
+             const ix=yt.getPlaylistIndex?.();
+             const vd=yt.getVideoData?.()||{};
+             log('Playlist ID: '+p.listId);
+             log('Playlist length: '+pl.length);
+             log('Playlist index: '+ix);
+             log('Current video ID: '+(vd.video_id||'(none yet)'));
+             if(!pl.length) log('DIAGNOSTIC: YouTube did not expose playlist items yet.');
+           }catch(e){log('Playlist diagnostic error: '+e.message)}
+         },1200);
+       } else setState('READY');
+       startPolling();
+     },
+     onStateChange:e=>{
+       lastState=({[-1]:'UNSTARTED',[0]:'ENDED',[1]:'PLAYING',[2]:'PAUSED',[3]:'BUFFERING',[5]:'CUED'})[e.data]||String(e.data);
+       render();log('Player state: '+lastState);
+       if(p.listId){
+         try{
+           let ix=yt.getPlaylistIndex?.();
+           let vd=yt.getVideoData?.()||{};
+           log('Playlist index '+ix+' · video '+(vd.video_id||'?'));
+         }catch{}
+       }
+     },
+     onAutoplayBlocked:()=>{
+       setState('TAP PLAY');
+       log('AUTOPLAY BLOCKED by browser — tap Play / Resume.');
+     },
+     onError:e=>{
+       let m={2:'Invalid parameter',5:'HTML5 player error',100:'Video unavailable/private',101:'Embedding not allowed',150:'Embedding not allowed'};
+       log('YouTube error '+e.data+(m[e.data]?' — '+m[e.data]:''));
+       setState('YT ERROR');
+     }
+   }
+ };
+
+ /* For a watch URL that also contains a playlist, start from that video
+    while preserving the native playlist context. Playlist-only URLs omit it. */
+ if(p.videoId) cfg.videoId=p.videoId;
+
+ yt=new YT.Player('ytplayer',cfg);
 }
 function startPolling(){clearInterval(pollTimer);pollTimer=setInterval(inspect,150)}
 function inspect(){if(!ytReady||!yt)return;let score=0,n=[];let st=yt.getPlayerState(),time=0;try{time=yt.getCurrentTime()}catch{}
@@ -61,7 +126,7 @@ function inspect(){if(!ytReady||!yt)return;let score=0,n=[];let st=yt.getPlayerS
  if(smartOn){if(confidence>=75)duck();else if(confidence<=20)restore();if(!adMode)setState(confidence>=40?'SUSPICIOUS':'CONTENT')}render()
 }
 $('load').onclick=loadYT;$('url').addEventListener('keydown',e=>{if(e.key==='Enter')loadYT()});
-$('resume').onclick=()=>{try{if(ytReady&&yt){yt.playVideo();log('Manual play/resume requested')}}catch(e){log('Play failed: '+e.message)}};
+$('resume').onclick=()=>{try{if(ytReady&&yt){log('Manual play/resume requested');yt.playVideo();setTimeout(()=>{try{let pl=yt.getPlaylist?.()||[];log('After tap — state: '+yt.getPlayerState()+' · playlist length: '+pl.length+' · index: '+yt.getPlaylistIndex?.())}catch{}},700)}}catch(e){log('Play failed: '+e.message)}};
 $('volume').oninput=e=>{userVolume=+e.target.value/100;if(!adMode&&ytReady)yt.setVolume(Math.round(userVolume*100));render()};
 $('duck').oninput=e=>{duckPct=+e.target.value/100;if(adMode)fadeTo(userVolume*(1-duckPct),350);render()};
 $('smart').onclick=()=>{smartOn=!smartOn;$('smart').textContent=smartOn?'ON':'OFF';$('smart').classList.toggle('on',smartOn);$('mode').textContent=smartOn?'SMART ON':'SMART OFF';if(!smartOn){confidence=0;restore()}log('Smart detection '+(smartOn?'enabled':'disabled'));render()};
