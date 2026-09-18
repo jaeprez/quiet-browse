@@ -1,180 +1,69 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080a0d">
-<title>QuietBrowse</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080a0d"><title>QuietBrowse v2.1</title>
 <style>
-:root{color-scheme:dark;--bg:#080a0d;--panel:#11151a;--panel2:#0d1014;--line:#252b33;--text:#f5f7fa;--muted:#8d96a2;--accent:#d9ff62;--warn:#ffbd59}
+:root{color-scheme:dark;--bg:#080a0d;--p:#11151a;--p2:#0d1014;--line:#252b33;--text:#f5f7fa;--muted:#8d96a2;--accent:#d9ff62}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif}
 body{padding-bottom:env(safe-area-inset-bottom)}button,input{font:inherit}.top{position:sticky;top:0;z-index:10;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:#080a0df0;backdrop-filter:blur(18px);border-bottom:1px solid #171b20}
-.urlbar{display:flex;gap:7px}.urlbar input{min-width:0;flex:1;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px;color:var(--text);outline:0}.urlbar button{border:0;border-radius:13px;padding:0 15px;background:var(--accent);color:#10120b;font-weight:800}
+.urlbar{display:flex;gap:7px}.urlbar input{min-width:0;flex:1;background:var(--p);border:1px solid var(--line);border-radius:13px;padding:12px;color:var(--text);outline:0}.urlbar button{border:0;border-radius:13px;padding:0 15px;background:var(--accent);color:#10120b;font-weight:800}
 main{max-width:850px;margin:auto;padding:12px}.player{background:#000;border-radius:18px;overflow:hidden;aspect-ratio:16/9}.player iframe{width:100%;height:100%;border:0}.placeholder{height:100%;display:grid;place-items:center;color:#666;font-size:14px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:15px;margin-top:11px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.title{font-weight:800}.value{color:var(--accent);font-variant-numeric:tabular-nums}input[type=range]{width:100%;accent-color:var(--accent);margin:17px 0 5px}
-button.small{background:#1b2128;color:var(--text);border:1px solid #303741;border-radius:11px;padding:9px 11px}.on{background:var(--accent)!important;color:#111!important;border-color:var(--accent)!important}
-.state{font-size:13px;color:var(--muted)}.state strong{color:var(--text)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.metric{background:var(--panel2);border-radius:12px;padding:11px}.metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}.metric b{font-size:17px}
-details{margin-top:11px}.log{max-height:190px;overflow:auto;background:#080a0d;border-radius:11px;padding:10px;font:11px ui-monospace,SFMono-Regular,monospace;color:#aab2bd;white-space:pre-wrap}.hint{font-size:12px;color:var(--muted);line-height:1.45;margin:10px 1px 0}
-.pill{font-size:10px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);padding:5px 7px;border-radius:999px}
+.card{background:var(--p);border:1px solid var(--line);border-radius:18px;padding:15px;margin-top:11px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.title{font-weight:800}.value{color:var(--accent);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);margin:17px 0 5px}button.small{background:#1b2128;color:var(--text);border:1px solid #303741;border-radius:11px;padding:9px 11px}.on{background:var(--accent)!important;color:#111!important;border-color:var(--accent)!important}
+.state{font-size:13px;color:var(--muted)}.state strong{color:var(--text)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.metric{background:var(--p2);border-radius:12px;padding:11px}.metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}.metric b{font-size:17px}
+details{margin-top:11px}.log{max-height:190px;overflow:auto;background:#080a0d;border-radius:11px;padding:10px;font:11px ui-monospace,SFMono-Regular,monospace;color:#aab2bd;white-space:pre-wrap}.hint{font-size:12px;color:var(--muted);line-height:1.45;margin:10px 1px 0}.pill{font-size:10px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);padding:5px 7px;border-radius:999px}
 @media(max-width:520px){.grid{grid-template-columns:1fr 1fr}.player{border-radius:14px}}
-</style>
-</head>
+</style></head>
 <body>
-<header class="top">
-  <div class="urlbar">
-    <input id="url" inputmode="url" autocomplete="off" placeholder="YouTube URL or playlist URL">
-    <button id="load">Load</button>
-  </div>
-</header>
-
+<header class="top"><div class="urlbar"><input id="url" inputmode="url" autocomplete="off" placeholder="YouTube URL or playlist URL"><button id="load">Load</button></div></header>
 <main>
-  <div class="player" id="player"><div class="placeholder">Paste a YouTube video or playlist URL above</div></div>
-
-  <section class="card">
-    <div class="row">
-      <span class="title">Quiet Volume</span>
-      <span class="pill" id="mode">SMART ON</span>
-    </div>
-    <input id="volume" type="range" min="0" max="100" value="70">
-    <div class="row"><span>Master</span><span class="value" id="volumeText">70%</span></div>
-    <input id="duck" type="range" min="5" max="90" value="60">
-    <div class="row"><span>Ad reduction</span><span class="value" id="duckText">60%</span></div>
-    <div class="row" style="margin-top:14px">
-      <span>Smart detection</span>
-      <button class="small on" id="smart">ON</button>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="row"><span class="title">Detector</span><span class="state" id="state"><strong>WAITING</strong></span></div>
-    <div class="grid">
-      <div class="metric"><small>Confidence</small><b id="confidence">0%</b></div>
-      <div class="metric"><small>Player</small><b id="playerState">--</b></div>
-      <div class="metric"><small>Signals</small><b id="signals">0</b></div>
-    </div>
-    <details>
-      <summary>Detection log</summary>
-      <div class="log" id="log">QuietBrowse initialized.\n</div>
-    </details>
-    <p class="hint">This build watches observable player/page signals where the browser permits it. YouTube may change its UI, so the detector records what it sees instead of assuming one fixed ad marker.</p>
-  </section>
-</main>
-
+<div class="player" id="player"><div class="placeholder">Paste a YouTube video or playlist URL above</div></div>
+<section class="card">
+<div class="row"><span class="title">Quiet Volume</span><span class="pill" id="mode">SMART ON</span></div>
+<input id="volume" type="range" min="0" max="100" value="70"><div class="row"><span>Master</span><span class="value" id="volumeText">70%</span></div>
+<input id="duck" type="range" min="5" max="90" value="60"><div class="row"><span>Ad reduction</span><span class="value" id="duckText">60%</span></div>
+<div class="row" style="margin-top:14px"><span>Smart detection</span><button class="small on" id="smart">ON</button></div>
+<button class="small" id="resume" style="width:100%;margin-top:12px">Play / Resume</button>
+</section>
+<section class="card">
+<div class="row"><span class="title">Detector</span><span class="state" id="state"><strong>WAITING</strong></span></div>
+<div class="grid"><div class="metric"><small>Confidence</small><b id="confidence">0%</b></div><div class="metric"><small>Player</small><b id="playerState">--</b></div><div class="metric"><small>Signals</small><b id="signals">0</b></div></div>
+<details><summary>Detection log</summary><div class="log" id="log">QuietBrowse v2.1 initialized.
+</div></details>
+<p class="hint">Playlist URLs are loaded explicitly after the YouTube player becomes ready. On iPhone, use Play / Resume if Safari blocks automatic playback.</p>
+</section></main>
 <script>
-/* QuietBrowse v2
-   Detection strategy:
-   1) YouTube IFrame Player API state/time/volume signals.
-   2) Same-origin DOM inspection when available.
-   3) Weighted confidence + hysteresis to prevent volume flutter.
-   4) Smooth duck/restore.
-*/
-let yt=null, ytReady=false, smartOn=true, userVolume=.70, duckPct=.60;
-let adMode=false, confidence=0, signalCount=0, lastState='--', lastTime=null;
-let pollTimer=null, restoreTimer=null, duckTimer=null, logLines=[];
-
+let yt=null,ytReady=false,smartOn=true,userVolume=.70,duckPct=.60,adMode=false,confidence=0,signalCount=0,lastState='--',lastTime=null,pollTimer=null,fadeTimer=null,logLines=[];
 const $=id=>document.getElementById(id);
-function log(s){const t=new Date().toLocaleTimeString();logLines.unshift(`[${t}] ${s}`);logLines=logLines.slice(0,80);$('log').textContent=logLines.join('\n')}
-function setState(s){$('state').innerHTML='<strong>'+s+'</strong>'}
-function pct(v){return Math.round(v*100)+'%'}
-function render(){ $('volumeText').textContent=pct(userVolume); $('duckText').textContent=Math.round(duckPct*100)+'%'; $('confidence').textContent=Math.round(confidence)+'%'; $('playerState').textContent=lastState; $('signals').textContent=signalCount }
-function fadeTo(v,ms){
-  if(!ytReady||!yt)return;
-  clearInterval(restoreTimer); clearInterval(duckTimer);
-  const from=yt.getVolume()/100, to=Math.max(0,Math.min(1,v)), t0=performance.now();
-  const id=setInterval(()=>{
-    const p=Math.min(1,(performance.now()-t0)/ms), e=p*p*(3-2*p);
-    yt.setVolume(Math.round((from+(to-from)*e)*100));
-    if(p>=1)clearInterval(id);
-  },50);
-  if(to<userVolume)setState('DUCKED'); else setState('RESTORING');
-}
-function duck(){if(!smartOn||adMode)return;adMode=true;log('AD CONFIRMED → ducking volume');fadeTo(userVolume*(1-duckPct),650)}
-function restore(){if(!adMode)return;adMode=false;log('AD EXIT → restoring volume');fadeTo(userVolume,1200);setTimeout(()=>{if(!adMode)setState('CONTENT')},1250)}
-
-function parseYT(u){
-  try{
-    const x=new URL(u);
-    const out={videoId:null,listId:null};
-    if(x.hostname.includes('youtu.be'))out.videoId=x.pathname.slice(1).split('/')[0];
-    if(x.hostname.includes('youtube.com')){
-      out.videoId=x.searchParams.get('v');
-      out.listId=x.searchParams.get('list');
-      if(x.pathname.startsWith('/shorts/'))out.videoId=x.pathname.split('/')[2];
-      if(x.pathname.startsWith('/embed/'))out.videoId=x.pathname.split('/')[2];
-    }
-    return out;
-  }catch{return {videoId:null,listId:null}}
-}
+function log(s){let t=new Date().toLocaleTimeString();logLines.unshift(`[${t}] ${s}`);logLines=logLines.slice(0,80);$('log').textContent=logLines.join('\n')}
+function setState(s){$('state').innerHTML='<strong>'+s+'</strong>'} function pct(v){return Math.round(v*100)+'%'}
+function render(){$('volumeText').textContent=pct(userVolume);$('duckText').textContent=Math.round(duckPct*100)+'%';$('confidence').textContent=Math.round(confidence)+'%';$('playerState').textContent=lastState;$('signals').textContent=signalCount}
+function fadeTo(v,ms){if(!ytReady||!yt)return;clearInterval(fadeTimer);let from=yt.getVolume()/100,to=Math.max(0,Math.min(1,v)),t0=performance.now();fadeTimer=setInterval(()=>{let p=Math.min(1,(performance.now()-t0)/ms),e=p*p*(3-2*p);yt.setVolume(Math.round((from+(to-from)*e)*100));if(p>=1)clearInterval(fadeTimer)},50)}
+function duck(){if(!smartOn||adMode)return;adMode=true;setState('DUCKED');log('AD CONFIRMED → ducking');fadeTo(userVolume*(1-duckPct),650)}
+function restore(){if(!adMode)return;adMode=false;setState('RESTORING');log('AD EXIT → restoring');fadeTo(userVolume,1200);setTimeout(()=>{if(!adMode)setState('CONTENT')},1250)}
+function parseYT(u){try{let x=new URL(u),o={videoId:null,listId:null},h=x.hostname.replace(/^www\./,'').toLowerCase();if(h==='youtu.be'){o.videoId=x.pathname.slice(1).split('/')[0]||null;o.listId=x.searchParams.get('list')}if(h==='youtube.com'||h.endsWith('.youtube.com')){o.videoId=x.searchParams.get('v');o.listId=x.searchParams.get('list');if(x.pathname.startsWith('/shorts/'))o.videoId=x.pathname.split('/')[2]||null;if(x.pathname.startsWith('/embed/')){let p=x.pathname.split('/').filter(Boolean);if(p[1]&&p[1]!=='videoseries')o.videoId=p[1]}if(x.pathname.includes('/videoseries')||x.pathname==='/playlist')o.videoId=null}return o}catch{return{videoId:null,listId:null}}}
 function loadYT(){
-  const p=parseYT($('url').value.trim());
-  if(!p.videoId&&!p.listId){log('Could not parse a YouTube URL');return}
-  $('player').innerHTML='<div id="ytplayer"></div>';
-  const opts={height:'100%',width:'100%',videoId:p.videoId||undefined,playerVars:{playsinline:1,rel:0,modestbranding:1}};
-  if(p.listId)opts.playerVars.list=p.listId;
-  if(yt)try{yt.destroy()}catch{}
-  yt=new YT.Player('ytplayer',{
-    ...opts,
-    events:{
-      onReady:e=>{ytReady=true;yt.setVolume(Math.round(userVolume*100));setState('READY');log('YouTube player ready');startPolling()},
-      onStateChange:e=>{lastState=({[-1]:'UNSTARTED',[0]:'ENDED',[1]:'PLAYING',[2]:'PAUSED',[3]:'BUFFERING',[5]:'CUED'})[e.data]||String(e.data);render();log('Player state: '+lastState)}
-    }
-  });
+ let p=parseYT($('url').value.trim());if(!p.videoId&&!p.listId){log('Could not parse YouTube URL');return}if(typeof YT==='undefined'||!YT.Player){log('YouTube API still loading; try again in a moment');return}
+ if(yt)try{yt.destroy()}catch{};$('player').innerHTML='<div id="ytplayer"></div>';ytReady=false;confidence=0;adMode=false;lastTime=null;lastState='--';setState('LOADING');render();
+ yt=new YT.Player('ytplayer',{height:'100%',width:'100%',videoId:p.videoId||undefined,playerVars:{playsinline:1,rel:0,autoplay:0},events:{
+ onReady:()=>{ytReady=true;yt.setVolume(Math.round(userVolume*100));if(p.listId){log('Loading playlist: '+p.listId);try{yt.loadPlaylist({list:p.listId,listType:'playlist',index:0});setState('PLAYLIST')}catch(e){log('Playlist load failed: '+e.message);setState('PLAYLIST ERROR')}}else setState('READY');log(p.listId?'Playlist player ready':'YouTube player ready');startPolling()},
+ onStateChange:e=>{lastState=({[-1]:'UNSTARTED',[0]:'ENDED',[1]:'PLAYING',[2]:'PAUSED',[3]:'BUFFERING',[5]:'CUED'})[e.data]||String(e.data);render();log('Player state: '+lastState)},
+ onError:e=>{let m={2:'Invalid parameter',5:'HTML5 player error',100:'Video unavailable/private',101:'Embedding not allowed',150:'Embedding not allowed'};log('YouTube error '+e.data+(m[e.data]?' — '+m[e.data]:''));setState('YT ERROR')}
+ }});
 }
 function startPolling(){clearInterval(pollTimer);pollTimer=setInterval(inspect,150)}
-function inspect(){
-  if(!ytReady||!yt)return;
-  let score=0, names=[];
-  let st=yt.getPlayerState(), time=0, dur=0;
-  try{time=yt.getCurrentTime();dur=yt.getDuration()}catch{}
-  /* Playback anomaly is supporting evidence only. */
-  if(st===2 && lastState==='PLAYING'){score+=12;names.push('pause-transition')}
-  if(st===3 && lastState==='PLAYING'){score+=5;names.push('buffer-transition')}
-  /* DOM inspection works only if browser permits access to the embedded document.
-     Keep it isolated so failure does not break the player. */
-  try{
-    const frame=document.querySelector('#ytplayer iframe');
-    const doc=frame&&frame.contentDocument;
-    if(doc){
-      const txt=(doc.body?.innerText||'').toLowerCase();
-      const adWords=['skip ad','skip ads','visit advertiser','learn more','shop now','sponsored'];
-      for(const w of adWords)if(txt.includes(w)){score+=25;names.push(w)}
-      const els=[...doc.querySelectorAll('*')];
-      for(const el of els.slice(0,1500)){
-        const r=getComputedStyle(el);
-        const bg=r.backgroundColor;
-        if(r.visibility!=='hidden'&&r.display!=='none'&&/rgb\(\s*255,\s*(18[0-9]|19[0-9]|2[0-5][0-9])\s*,\s*0\s*\)/.test(bg)){score+=15;names.push('yellow-ui');break}
-      }
-    }
-  }catch(e){/* expected cross-origin in many browsers */}
-  /* Timeline/time continuity is deliberately weak evidence. */
-  if(lastTime!==null && st===1 && time+1<lastTime){score+=8;names.push('time-reset')}
-  lastTime=time;
-  confidence=Math.max(0,Math.min(100,confidence*.86+score));
-  signalCount=names.length;
-  if(smartOn){
-    if(confidence>=75){clearTimeout(duckTimer);duckTimer=setTimeout(duck,180)}
-    else if(confidence<=20){clearTimeout(restoreTimer);restoreTimer=setTimeout(restore,350)}
-    if(!adMode)setState(confidence>=40?'SUSPICIOUS':'CONTENT')
-  }
-  render();
+function inspect(){if(!ytReady||!yt)return;let score=0,n=[];let st=yt.getPlayerState(),time=0;try{time=yt.getCurrentTime()}catch{}
+ /* Cross-origin iframe DOM is normally unavailable on GitHub Pages. These probes are opportunistic. */
+ try{let f=document.querySelector('#ytplayer iframe'),d=f&&f.contentDocument;if(d){let txt=(d.body?.innerText||'').toLowerCase();for(let w of ['skip ad','skip ads','visit advertiser','learn more','sponsored'])if(txt.includes(w)){score+=30;n.push(w)}}}catch{}
+ if(lastTime!==null&&st===1&&time+1<lastTime){score+=8;n.push('time-reset')}lastTime=time;
+ confidence=Math.max(0,Math.min(100,confidence*.86+score));signalCount=n.length;
+ if(smartOn){if(confidence>=75)duck();else if(confidence<=20)restore();if(!adMode)setState(confidence>=40?'SUSPICIOUS':'CONTENT')}render()
 }
-$('load').onclick=loadYT;
-$('url').addEventListener('keydown',e=>{if(e.key==='Enter')loadYT()});
-$('volume').addEventListener('input',e=>{
-  userVolume=+e.target.value/100;
-  if(!adMode&&ytReady)yt.setVolume(Math.round(userVolume*100));
-  render();
-});
-$('duck').addEventListener('input',e=>{duckPct=+e.target.value/100;if(adMode)fadeTo(userVolume*(1-duckPct),350);render()});
-$('smart').onclick=()=>{
-  smartOn=!smartOn;$('smart').textContent=smartOn?'ON':'OFF';$('smart').classList.toggle('on',smartOn);$('mode').textContent=smartOn?'SMART ON':'SMART OFF';
-  if(!smartOn){confidence=0;restore()} log('Smart detection '+(smartOn?'enabled':'disabled'));render()
-};
-
-/* Load the official YouTube IFrame API. */
-window.onYouTubeIframeAPIReady=()=>{ytReady=false;log('YouTube API loaded')};
-const tag=document.createElement('script');tag.src='https://www.youtube.com/iframe_api';document.head.appendChild(tag);
-render();
-</script>
-</body>
-</html>
+$('load').onclick=loadYT;$('url').addEventListener('keydown',e=>{if(e.key==='Enter')loadYT()});
+$('resume').onclick=()=>{try{if(ytReady&&yt){yt.playVideo();log('Manual play/resume requested')}}catch(e){log('Play failed: '+e.message)}};
+$('volume').oninput=e=>{userVolume=+e.target.value/100;if(!adMode&&ytReady)yt.setVolume(Math.round(userVolume*100));render()};
+$('duck').oninput=e=>{duckPct=+e.target.value/100;if(adMode)fadeTo(userVolume*(1-duckPct),350);render()};
+$('smart').onclick=()=>{smartOn=!smartOn;$('smart').textContent=smartOn?'ON':'OFF';$('smart').classList.toggle('on',smartOn);$('mode').textContent=smartOn?'SMART ON':'SMART OFF';if(!smartOn){confidence=0;restore()}log('Smart detection '+(smartOn?'enabled':'disabled'));render()};
+window.onYouTubeIframeAPIReady=()=>log('YouTube API loaded');let tag=document.createElement('script');tag.src='https://www.youtube.com/iframe_api';document.head.appendChild(tag);render();
+</script></body></html>
